@@ -1,114 +1,180 @@
 import React, { useEffect, useRef } from 'react';
 import { Network } from 'vis-network';
-import { generateNodes, generateEdges } from '../services/utils/Graph';
 
+function generateNode(id, label, color) {
+	return {
+		id,
+		label,
+		color: {
+			border: 'transparent',
+			background: color,
+			highlight: {
+				border: 'transparent',
+				background: color,
+			},
+		},
+		shadow: {
+			enabled: true,
+			color: 'rgba(0,0,0,0.5)',
+			size: 10,
+			x: 2,
+			y: 2,
+		},
+	};
+}
 
-const convertirResultat = (resultat, colors) => {
-    const points = [
-        { id: 'depot', type: 'depot', color: '#000000', label: 'Depot' }
-    ];
+// Méthode pour générer une arête
+function generateEdge(from, to, color, distance, arrow = true) {
+	const edge = {
+		from,
+		to,
+		color,
+		label: `${distance} km`
+	};
 
-    const routes = [];
+	if (arrow) {
+		edge.arrows = {
+			to: {
+				enabled: true,
+				scaleFactor: 0.5,
+				type: 'triangle',
+				color: 'black',
+			},
+		};
+	}
 
-    // Convertir la solution en points et routes
-    resultat.solution.forEach((tournee, index) => {
-        const circuitColor = colors[index % colors.length]; // Utiliser la couleur fournie
+	return edge;
+}
 
-        tournee.forEach((point, pointIndex) => {
-            if (point !== 0) { // 0 représente généralement le dépôt
-                const pointId = `point${point}`;
-                points.push({
-                    id: pointId,
-                    label: `Cantine ${point}`,
-                    color: circuitColor // Appliquer la couleur du circuit
-                });
+function generateNodes(points) {
+	return points.map(point => generateNode(point.id, point.label, point.color));
+}
 
-                const fromId = pointIndex === 0 ? 'depot' : `point${tournee[pointIndex - 1]}`;
-                const toId = pointId;
+function generateEdges(routes) {
+	return routes.map(route => generateEdge(route.from, route.to, route.color, route.distance));
+}
 
-                routes.push({
-                    from: fromId,
-                    to: toId,
-                    color: circuitColor,
-                    distance: resultat.distances[fromId === 'depot' ? 0 : parseInt(fromId.slice(5))][point]
-                });
-            }
-        });
+const convertirResultat = (resultat, colors, vehicleSelection = null) => {
+	const points = [{ id: 'depot', type: 'depot', color: '#000000', label: 'Depot' }];
+	const routes = [];
+	
+	const processTournee = (tournee, vehicleIndex) => {
+		const circuitColor = colors[vehicleIndex % colors.length];
+		
+		tournee.forEach((point, pointIndex) => {
+			if (point !== 0) {
+				const pointId = `point${point}`;
+				let label = `Cantine ${point}`;
+				
+				if (vehicleSelection !== null) {
+					const demande = resultat.demandeCantine[point];
+					label += ` [${demande}kg]`;
+				}
+				
+				points.push({
+					id: pointId,
+					label: label,
+					color: circuitColor
+				});
 
-        // Ajouter la route de retour au dépôt
-        const dernierPoint = tournee[tournee.length - 1];
-        if (dernierPoint !== 0) {
-            routes.push({
-                from: `point${dernierPoint}`,
-                to: 'depot',
-                color: circuitColor,
-                distance: resultat.distances[dernierPoint][0]
-            });
-        }
-    });
+				const fromId = pointIndex === 0 ? 'depot' : `point${tournee[pointIndex - 1]}`;
+				routes.push({
+					from: fromId,
+					to: pointId,
+					color: circuitColor,
+					distance: resultat.distances[
+						fromId === 'depot' ? 0 : parseInt(fromId.slice(5))
+					][point]
+				});
+			}
+		});
 
-    return { points, routes };
+		const lastPoint = tournee[tournee.length - 1];
+		if (lastPoint !== 0) {
+			routes.push({
+				from: `point${lastPoint}`,
+				to: 'depot',
+				color: circuitColor,
+				distance: resultat.distances[lastPoint][0]
+			});
+		}
+	};
+
+	if (vehicleSelection !== null) {
+		// Mode véhicule unique
+		processTournee(resultat.solution[vehicleSelection], vehicleSelection);
+	} else {
+		// Mode tous les véhicules
+		resultat.solution.forEach((tournee, index) => processTournee(tournee, index));
+	}
+
+	return { points, routes };
 };
 
 
-const GraphVisualization = ({ resultat, colors }) => { // Correction : destructuration de `resultat`
-    const graphRef = useRef(null);
 
-    useEffect(() => {
-        if (!graphRef.current) return;
+const GraphVisualization = ({ resultat, colors, vehicleSelection }) => {
+	const graphRef = useRef(null);
 
-        const { points, routes } = convertirResultat(resultat, colors);
+	useEffect(() => {
+		if (!graphRef.current || !resultat || !colors) return;
 
-        const nodes = generateNodes(points);
-        const edges = generateEdges(routes);
+		const conversion = vehicleSelection !== undefined ?
+			convertirResultat(resultat, colors, vehicleSelection) :
+			convertirResultat(resultat, colors);
 
-        const options = {
-            nodes: {
-                shape: 'dot',
-                size: 15,
-                fixed: false,
-            },
-            edges: {
-                width: 2,
-                smooth: {
-                    type: 'cubicBezier',
-                    forceDirection: 'none',
-                    roundness: 0.4,
-                },
-                font: {
-                    face: 'Arial',
-                    size: 12,
-                },
-            },
-            physics: {
-                enabled: true,
-                repulsion: {
-                    centralGravity: 0.01,
-                    springLength: 200,
-                    springConstant: 0.05,
-                    nodeDistance: 150,
-                    damping: 0.09,
-                },
-                solver: 'repulsion',
-                stabilization: {
-                    enabled: true,
-                    iterations: 1000,
-                    updateInterval: 25,
-                },
-            },
-            interaction: {
-                dragNodes: false,
-                zoomView: true,
-                dragView: true,
-            },
-        };
+		const { points, routes } = conversion;
+		const nodes = generateNodes(points);
+		const edges = generateEdges(routes);
 
-        new Network(graphRef.current, { nodes, edges }, options);
-    }, [resultat, colors]);
+		const networkOptions = {
+			nodes: {
+				shape: 'dot',
+				size: 20,
+				borderWidth: 2,
+				font: {
+					face: 'Arial',
+					size: 14,
+					strokeWidth: 2
+				},
+				scaling: {
+					min: 10,
+					max: 30
+				}
+			},
+			edges: {
+				width: 2,
+				smooth: false,
+				arrows: 'to'
+			},
+			physics: {
+				enabled: true,
+				solver: 'barnesHut',
+				barnesHut: {
+					gravitationalConstant: -3000,
+					springLength: 200,
+					springConstant: 0.04,
+					damping: 0.15,
+					avoidOverlap: 0.2
+				},
+				stabilization: {
+					enabled: true,
+					iterations: 2000,
+					updateInterval: 50,
+					fit: true
+				}
+			}
+		};
 
-    return (
-        <div ref={graphRef} className="w-full h-[40rem]" />
-    );
+		// Création de l'instance réseau
+		const network = new Network(graphRef.current, { nodes, edges }, networkOptions);
+
+		// Nettoyage
+		return () => network.destroy();
+	}, [resultat, colors, vehicleSelection]); // Dépendances réactives
+
+	return <div ref={graphRef} className="w-full h-[36rem]" />;
 };
+
 
 export default GraphVisualization;

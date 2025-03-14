@@ -7,7 +7,6 @@ import { X      } from "lucide-react";
 
 // Services
 import GraphVisualization    from '../services/GraphVisualization';
-import VehicleGraphVisualization from '../services/VehicleGraphVisualization';
 import {runSimulatedAnnealing} from '../services/AnnealingAlgorithm';
 import convertor             from "../services/Convertor";
 
@@ -129,6 +128,8 @@ const AnnealingPage = ( ) => {
 		if (!isFormValid()) return;
 
 		setIsProcessing(true);
+
+		await new Promise(resolve => setTimeout(resolve, 100));
 
 		try {
 			// Algorithm execution
@@ -300,55 +301,56 @@ const AnnealingPage = ( ) => {
 
 									{/* Tab content */}
 									{activeTab === "graph" && graphGenerated && (
-    <div>
-        <GraphVisualization resultat={graphData} colors={vehicleColors}/>
-    </div>
-)}
-{activeTab === "list" && (
-    <div>
-        {/* Vehicle Selection */}
-        <div className="flex justify-center mb-4">
-            <select
-                id="vehicleSelect"
-                className="border p-2 rounded-md focus:border-[var(--primary-color)]"
-                value={vehicleSelection}
-                onChange={(e) => setVehicleSelection(parseInt(e.target.value))}
-            >
-                {Array.from({ length: nbVehicule }, (_, i) => i).map((index) => (
-                    <option key={index} value={index}>Véhicule {index + 1}</option>
-                ))}
-            </select>
-        </div>
+										<div>
+											<GraphVisualization resultat={graphData} colors={vehicleColors}/>
+										</div>
+									)}
+									{activeTab === "list" && (
+										<div>
+											{/* Vehicle Selection */}
+											<div className="flex justify-center mb-4">
+												<select
+													id="vehicleSelect"
+													className="border p-2 rounded-md focus:border-[var(--primary-color)]"
+													value={vehicleSelection}
+													onChange={(e) => setVehicleSelection(parseInt(e.target.value))}
+												>
+													{Array.from({ length: nbVehicule }, (_, i) => i).map((index) => (
+														<option key={index} value={index}>Véhicule {index + 1}</option>
+													))}
+												</select>
+											</div>
 
-        {/* Vehicle Graph Visualization */}
-        <VehicleGraphVisualization
-            resultat={graphData}
-            colors={vehicleColors}
-            vehicleSelection={vehicleSelection}
-        />
+											{/* Vehicle Data */}
+											{graphData?.solution ? (
+												<div className="mb-4 flex justify-around">
+													<div className="text-gray-700">
+														Charge du véhicule : {
+															graphData.solution[vehicleSelection].reduce((sum, cantine) => sum + graphData.demandeCantine[cantine-1], 0)
+														} kg
+													</div>
+													<div className="text-gray-700">
+														Nombre de sites visités : {graphData.solution[vehicleSelection].length}
+													</div>
+												</div>
+											) : (
+												<div className="mb-4 text-center text-gray-700">Aucune donnée de véhicule disponible.</div>
+											)}
 
-        {/* Vehicle Data */}
-        {graphData?.solution ? (
-            <div className="mb-4 flex justify-around">
-                <div className="text-gray-700">
-                    Charge du véhicule : {
-                        graphData.solution[vehicleSelection].reduce((sum, cantine) => sum + graphData.demandeCantine[cantine-1], 0)
-                    } kg
-                </div>
-                <div className="text-gray-700">
-                    Nombre de sites visités : {graphData.solution[vehicleSelection].length}
-                </div>
-            </div>
-        ) : (
-            <div className="mb-4 text-center text-gray-700">Aucune donnée de véhicule disponible.</div>
-        )}
-    </div>
-)}
+											{/* Vehicle Graph Visualization */}
+											<GraphVisualization
+												resultat={graphData}
+												colors={vehicleColors}
+												vehicleSelection={vehicleSelection}
+											/>
+											
+										</div>
+									)}
 
 									{/* Additional Information */}
 									<div className="flex justify-around gap-2">
-										<p className="text-gray-700 font-medium">Temps d'exécution : {executionTime} s</p>
-										<p className="text-gray-700 font-medium">Solution optimale : {optimalSolution}</p>
+										<p className="text-gray-700 font-medium">Temps d'exécution : {executionTime.toFixed(3)} s</p>
+										<p className="text-gray-700 font-medium">Solution optimale : {optimalSolution.toFixed(3)}</p>
 									</div>
 								</div>
 							);
